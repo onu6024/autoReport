@@ -1134,7 +1134,7 @@ def anlyEfficient(custNo, location, start, end):
     #기상 데이터 불러오기 
     # sql="""SELECT * FROM ereport.sei_weather WHERE "kmaNm" = '{}' AND tm BETWEEN '{}' AND '{}'""".format(location, start, pd.to_datetime(end)+dt.timedelta(0,-900,0))
     # weather=psql.read_sql_query(sql, conn, dtype={'tm':'datetime64[ns]'})
-    weather=pd.read_excel("energy_report/analysis/weather.xlsx", dtype={'tm':'datetime64[ns]'})
+    weather=pd.read_excel("weather.xlsx", dtype={'tm':'datetime64[ns]'})
     weather=weather.rename(columns={'tm':'datetime', 'ta':'Temperature'})
     
     #기상데이터 전처리
@@ -1363,13 +1363,13 @@ def anlyEfficient(custNo, location, start, end):
     
     #계절별 전력량요금 반영해 비용 절감 계산하기 
     sql="""SELECT * FROM ereport.sei_custinfo WHERE "custNo" = '{}'""".format(custNo)
-    custinfo=psql.read_sql(sql, conn)    
+    custinfo=db.execute_query(sql)
         
     if custinfo["selCost"][0]=="0" or 'nan':
         sql="""SELECT * FROM ereport.sei_cost WHERE item = '{}'""".format(custinfo["cntrKnd"][0])
     else:
         sql="""SELECT * FROM ereport.sei_cost WHERE item = '{}' AND sel = '{}'""".format(custinfo["cntrKnd"][0], custinfo["selCost"][0])
-    info_costn=psql.read_sql_query(sql, conn)
+    info_costn=db.execute_query(sql)
     
     #saveEfficient : 냉난방기기 효율화로 각각 10% 절감/ 에너지효율화로 기저부하 5% 절감 시 비용/전기사용량 산출 
     saveEfficient=pd.DataFrame({'save' : [save],
