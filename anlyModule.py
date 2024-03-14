@@ -37,29 +37,6 @@ from db_connect import DBConnection
 db = DBConnection()
 db.connect()
 
-custNm='유씨엘㈜'
-GoalPeak=0.7
-GoalTime=40
-
-#고객번호, 주소-인접 기상청 불러오기 
-sql="""SELECT * FROM ereport.sei_address WHERE "custNm" = '{}'""".format(custNm)
-address = db.execute_query(sql)
-custNo=address['custNo'][0]
-pw=address['password'][0]
-
-sql="""SELECT * FROM ereport.sei_kma WHERE "sigunguCd" = '{}'""".format(address['sigunguCd'][0])
-kma=db.execute_query(sql)
-location=kma['kmaNm'][0]
-
-#15분 단위 데이터 기준으로 분석 기간 선정하기 - 과거데이터 기준
-sql="""SELECT * FROM ereport.sei_usekwh WHERE "custNo" = '{}'""".format(custNo)
-minute=db.execute_query(sql, dtype={'mrYmd':'datetime64[ns]'})
-minute.set_index("mrYmd", inplace=True)
-minute=minute.sort_index()
-
-start=minute.index[0].date().strftime('%Y-%m-%d')
-end=minute.index[len(minute)-1].date().strftime('%Y-%m-%d')
-
 #### 1_고객정보 
 def custInfo(custNo, custNm, start, end):
     #DB conn & query
@@ -74,8 +51,8 @@ def custInfo(custNo, custNm, start, end):
     custinfo=db.execute_query(sql)
 
     #고객주소 정보 불러오기 
-    sql="""SELECT * FROM ereport.sei_address WHERE "custNo" = '{}'""".format(custNo)
-    address=db.execute_query(sql)
+    # sql="""SELECT * FROM ereport.sei_address WHERE "custNo" = '{}'""".format(custNo)
+    # address=db.execute_query(sql)
 
     #요금청구정보, 전력사용량 불러오기 - 검침일 기준 
     sql="""SELECT * FROM ereport.sei_bill WHERE "custNo"= '{}' AND "billYm" BETWEEN '{}' AND '{}'""".format(custNo, start[0:7], end[0:7])
@@ -365,7 +342,7 @@ def selCost(custNo, custNm, start, end):
         plt.legend(bbox_to_anchor=(0.7,-0.12), ncol=3, fontsize=14)
 
         ax2=ax1.twinx()
-        ax2.plot(anlySelGraph1["date"].astype(str), anlySelGraph1["date"], linestyle='--', marker='o', linewidth=3, color='#007380')
+        ax2.plot(anlySelGraph1["date"].astype(str), anlySelGraph1["reqBill"], linestyle='--', marker='o', linewidth=3, color='#007380')
         ax2.tick_params(axis='y')
         current_values = ax2.get_yticks()
         ax2.set_yticklabels(['{:,.0f}'.format(x) for x in current_values/(10**4)])
@@ -1108,7 +1085,7 @@ def anlyPF(custNo, pw, start, end):
 
 
 #### 6_설비효율화
-def anlyEfficient(custNo, location, start, end):
+def anlyEfficient(custNo, start, end, location):
     plt.rcParams["font.family"]='Malgun Gothic'
     plt.rcParams['axes.unicode_minus']=False    
     
@@ -1132,9 +1109,9 @@ def anlyEfficient(custNo, location, start, end):
     dailyEnergy['usekWh']=data_minute.resample('1D').sum()['pwrQty']
 
     #기상 데이터 불러오기 
-    # sql="""SELECT * FROM ereport.sei_weather WHERE "kmaNm" = '{}' AND tm BETWEEN '{}' AND '{}'""".format(location, start, pd.to_datetime(end)+dt.timedelta(0,-900,0))
-    # weather=psql.read_sql_query(sql, conn, dtype={'tm':'datetime64[ns]'})
-    weather=pd.read_excel("weather.xlsx", dtype={'tm':'datetime64[ns]'})
+    sql="""SELECT * FROM ereport.sei_weather WHERE "kmaNm" = '{}' AND tm BETWEEN '{}' AND '{}'""".format(location, start, pd.to_datetime(end)+dt.timedelta(0,-900,0))
+    weather=db.execute_query(sql, dtype={'tm':'datetime64[ns]'})
+    # weather=pd.read_excel("weather.xlsx", dtype={'tm':'datetime64[ns]'})
     weather=weather.rename(columns={'tm':'datetime', 'ta':'Temperature'})
     
     #기상데이터 전처리

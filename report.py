@@ -2,6 +2,7 @@ import sys, os
 import psycopg2 as pg
 import pandas as pd
 import win32com.client as win32
+from datetime import datetime
 from anlyModule import custInfo, selCost, anlyCtrPeak, anlyPF, anlyEfficient, anlyPV
 from h_action import HAction
 from db_connect import DBConnection
@@ -11,18 +12,22 @@ haction = HAction()
 db = DBConnection()
 db.connect()
 
-custNm='구미시립인동도서관'
+# custNm='양주도시공사 에코스포츠센터'
+custNo='0322077694'
 GoalPeak=0.7
 GoalTime=40
 
 #고객번호, 주소-인접 기상청 불러오기 
-sql="""SELECT * FROM ereport.sei_address WHERE "custNm"= '{}'""".format(custNm)
+sql="""SELECT * FROM ereport.sei_address WHERE "custNo" = '{}'""".format(custNo)
 address = db.execute_query(sql)
-custNo=address['custNo'][0]
+# custNo=address['custNo'][0]
+custNm=address['custNm'][0]
 pw=address['password'][0]
-custAddress=address['address'][0]
 
-sql="""SELECT * FROM ereport.sei_kma WHERE "sigunguCd"= '{}'""".format(address['sigunguCd'][0])
+# custNo='1022760361'
+# pw='yjuc9762**'
+
+sql="""SELECT * FROM ereport.sei_kma WHERE "sigunguCd" = '{}'""".format(address['sigunguCd'][0])
 kma=db.execute_query(sql)
 location=kma['kmaNm'][0]
 
@@ -39,7 +44,7 @@ info, Anormaly, usekWhStats, fig1, fig2, fig3, fig4, centerGuide = custInfo(cust
 infoFare, anlySelGraph1, tableData, comment1, anlySelGraph2, comment2, selFare, fig1, fig2 = selCost(custNo, custNm, start, end)
 anlyCntrTable, ctrComment, fig1, fig2, anlyPeakTable = anlyCtrPeak(custNo, custNm, start, end, GoalPeak, GoalTime)
 anlyPF1, pfComment = anlyPF(custNo, pw, start, end)
-anlyEfficientGrph, anlyEfficientRgr, Rheat, Rcool, yearlyElect, monthlyElect, saveEfficient, fig1, fig2, fig3, similarity = anlyEfficient(custNo, location, start, end)
+anlyEfficientGrph, anlyEfficientRgr, Rheat, Rcool, yearlyElect, monthlyElect, saveEfficient, fig1, fig2, fig3, similarity = anlyEfficient(custNo, start, end, location)
 PVtable1, PVtable2, pvComment = anlyPV(custNo)
 
 # hwp 파일 열기
@@ -56,7 +61,7 @@ hwp.Open(file_path,"HWP","forceopen:true")
 '''''''''''''''
 표지
 '''''''''''''''
-# hwp.PutFieldText("today","2023.07.04")
+hwp.PutFieldText("today",datetime.now().strftime('%Y.%m.%d'))
 hwp.PutFieldText("custNm",custNm)
 
 '''''''''''''''
@@ -260,11 +265,12 @@ else:
         hwp.PutFieldText("ctrTrend","전기사용량은 보합추세이기 때문에,")
 
     if ctrComment['saveCost'][0] == 0:
-        hwp.PutFieldText("ctrOptCpower","")
-        hwp.PutFieldText("ctrComment","다음달에 다시 컨설팅을 받으신 후, 계약전력 변경을 결정하실 것을 권장합니다.")
+        hwp.PutFieldText("ctrOptCpower","다음달에")
+        hwp.PutFieldText("ctrComment","다시 컨설팅을 받으신 후, 계약전력 변경을 결정하실 것을 권장합니다.")
     else:
         if ctrComment['optCpower'].iloc[0] == ctrComment['cntrPwr'].iloc[0]:
             hwp.PutFieldText("ctrOptCpower","다음달에 다시 컨설팅을 받으신 후, 계약전력 변경을 결정하실 것을 권장합니다.")
+            hwp.PutFieldText("ctrComment"," ")
         else:
             hwp.PutFieldText("ctrOptCpower","계약전력을 "+'{:,.0f}'.format(ctrComment['optCpower'][0])+" kW 수준으로 변경을 제안드립니다.")
             hwp.PutFieldText("ctrComment","예상 절감액은 {:,.0f}원입니다. ".format(ctrComment['saveCost'][0]))
@@ -373,22 +379,28 @@ elif Rcool > 0 and Rcool < 0.2: #낮은 냉방 민감도
 else:
     hwp.PutFieldText("RcoolComment","비정상적인 냉방 가동 또는 냉방설비 미사용으로 보입니다.")
 
-if Rheat + Rcool < 0:
-    if Rheat < -0.6: #높은 난방 민감도
-        hwp.PutFieldText("efComment1","난방 설비 효율화를 통한 에너지 절감 가능성이 높을 것으로 판단됩니다.")
-    elif Rheat < -0.2 and Rheat > -0.6: #보통 난방 민감도
-        hwp.PutFieldText("efComment1","난방 설비 효율화를 통한 에너지 절감 가능성이 있을 것으로 판단됩니다.")
-    elif Rheat < 0 and Rheat > -0.2: #낮은 난방 민감도
-        hwp.PutFieldText("efComment1","난방 설비 효율화를 통한 에너지 절감 가능성이 낮을 것으로 판단됩니다.")
-elif Rheat + Rcool > 0:
-    if Rcool > 0.6: #높은 냉방 민감도
-        hwp.PutFieldText("efComment1","난방 설비 효율화를 통한 에너지 절감 가능성이 높을 것으로 판단됩니다.")
-    elif Rcool > 0.2 and Rcool < 0.6: #보통 냉방 민감도
-        hwp.PutFieldText("efComment1","난방 설비 효율화를 통한 에너지 절감 가능성이 있을 것으로 판단됩니다.")
-    elif Rcool > 0 and Rcool < 0.2: #낮은 냉방 민감도
-        hwp.PutFieldText("efComment1","난방 설비 효율화를 통한 에너지 절감 가능성이 낮을 것으로 판단됩니다.")
+
+if Rheat <= -0.6: #높은 난방 민감도
+    if Rcool >= 0.6:
+        hwp.PutFieldText("efComment1","냉난방 설비 효율화를 통한 에너지 절감 가능성이 높습니다.")
+    else :
+        hwp.PutFieldText("efComment1","난방 설비 효율화를 통한 에너지 절감 가능성은 높으며, 냉방 설비 효율화를 통한 에너지 절감 가능성이 낮습니다.")
+elif Rheat <= -0.2 and Rheat > -0.6: #보통 난방 민감도
+    if Rcool >= 0.6:
+        hwp.PutFieldText("efComment1","난방 설비 효율화를 통한 에너지 절감 가능성은 낮으며, 냉방 설비 효율화를 통한 에너지 절감 가능성이 높습니다.")
+    else:
+        hwp.PutFieldText("efComment1","난방 설비 효율화를 통한 에너지 절감 가능성이 있으며, 냉방 설비 효율화를 통한 에너지 절감 가능성이 낮습니다.")
+elif Rheat < 0 and Rheat > -0.2: #낮은 난방 민감도
+    if Rcool > 0:
+        hwp.PutFieldText("efComment1","난방 설비 효율화를 통한 에너지 절감 가능성은 낮으며, 냉방 설비 효율화를 통한 에너지 절감 가능성이 있습니다.")
+    else:
+        hwp.PutFieldText("efComment1","냉난방 설비 효율화를 통한 에너지 절감 가능성이 낮습니다.")
 else:
-    hwp.PutFieldText("efComment1","냉난방 설비 효율화를 통한 에너지 절감 가능성이 있을 것으로 판단됩니다.")
+    if Rcool > 0:
+        hwp.PutFieldText("efComment1","난방 설비 효율화를 통한 에너지 절감 가능성은 낮으며, 냉방 설비 효율화를 통한 에너지 절감 가능성이 있습니다.")
+    else:
+        hwp.PutFieldText("efComment1","냉난방 설비 효율화를 통한 에너지 절감 가능성이 낮습니다.")
+
 
 hwp.PutFieldText("yearlyBase",'{:,.2f}'.format(yearlyElect['yearlyBase'][0]))
 hwp.PutFieldText("yearlyBasePer",'{:,.1f}'.format(yearlyElect['yearlyBasePer'][0]))
@@ -401,7 +413,7 @@ hwp.PutFieldText("costBase",'{:,.0f}'.format(saveEfficient['costBase'][0]))
 hwp.PutFieldText("elecBase",'{:,.1f}'.format(saveEfficient['elecBase'][0]))
 
 if saveEfficient['save'][0] == 0:
-    hwp.PutFieldText("efComment2","")
+    hwp.PutFieldText("efComment2"," ")
     efTotalBill = 0
 elif saveEfficient['save'][0] == 1:
     hwp.PutFieldText("efComment2","히트펌프, 난방실외기 등 기기 효율화로 난방부하 10% 절감 시, 연간 {:,.0f}원({:,.2f}kWh) 비용 절감이 예상됩니다.".format(saveEfficient['costHeat'][0],saveEfficient['elecHeat'][0]))
@@ -426,7 +438,7 @@ hwp.PutFieldText("sellROI",'{:,.1f}'.format(PVtable2['sellROI'][0]))
 
 hwp.PutFieldText("meanCost",'{:,.0f}'.format(pvComment['meanCost'][0]))
 hwp.PutFieldText("meanROI",'{:,.1f}'.format(pvComment['meanROI'][0]))
-hwp.PutFieldText("custAddress",custAddress)
+# hwp.PutFieldText("custAddress",custAddress)
 
 '''''''''''''''
 summary
