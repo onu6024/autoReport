@@ -13,7 +13,7 @@ db = DBConnection()
 db.connect()
 
 # custNm='양주도시공사 에코스포츠센터'
-custNo='0322077694'
+custNo='1124060175'
 GoalPeak=0.7
 GoalTime=40
 
@@ -320,36 +320,36 @@ for i in range(len(anlyPF1)):
     hwp.HAction.Run("MoveRight")
     hwp.HAction.Run("MoveRight")
     hwp.PutFieldText("pfDate"+str(i+1),anlyPF1['date'][i])
-    hwp.PutFieldText("pfLaggStan"+str(i+1),anlyPF1['laggStan'][i])
-    hwp.PutFieldText("pfLaggPf"+str(i+1),'{:,.2f}'.format(anlyPF1['laggPF'][i]))
+    hwp.PutFieldText("pfLaggStan"+str(i+1),anlyPF1['jiStan'][i])
+    hwp.PutFieldText("pfLaggPf"+str(i+1),'{:,.2f}'.format(anlyPF1['jiPF'][i]))
     hwp.PutFieldText("pfLaggPfVar"+str(i+1),'{:,.2f}'.format(anlyPF1['laggPFVar'][i]))
-    hwp.PutFieldText("pfLeadStan"+str(i+1),anlyPF1['leadStan'][i])
-    hwp.PutFieldText("pfLeadPf"+str(i+1),'{:,.2f}'.format(anlyPF1['leadPF'][i]))
+    hwp.PutFieldText("pfLeadStan"+str(i+1),anlyPF1['jnStan'][i])
+    hwp.PutFieldText("pfLeadPf"+str(i+1),'{:,.2f}'.format(anlyPF1['jnPF'][i]))
     hwp.PutFieldText("pfLeadPfVar"+str(i+1),'{:,.2f}'.format(anlyPF1['leadPFVar'][i]))
     hwp.PutFieldText("pfBill"+str(i+1),'{:,.0f}'.format(anlyPF1['pfBill'][i]))
 hwp.HAction.Run("TableSubtractRow")
 
-pfBill = 0
-saveSign = ''
-if pfComment['saveCost'][0] < 0: 
-    saveSign='-'
-    pfBill = abs(pfComment['saveCost'][0])
-else: 
-    saveSign='+'
-    pfBill = 0
+# pfBill = 0
+# saveSign = ''
+# if pfComment['saveCost'][0] < 0: 
+#     saveSign='-'
+#     pfBill = abs(pfComment['saveCost'][0])
+# else: 
+#     saveSign='+'
+#     pfBill = 0
 
-if pfComment['laggChange'][0] == 1 and pfComment['leadChange'][0] == 1:
-    hwp.PutFieldText("pfComment1","지상역률, 진상역률이 모두 기준역률(지상역률 90%, 진상역률 95%) 미만으로")
-    hwp.PutFieldText("pfComment2","분석기간 동안 {:,.0f}원의 요금이 {}되었습니다. 역률요금 할인을 위하여 지상역률과 진상역률 관리를 권장합니다.".format(abs(pfComment['saveCost'][0]),saveSign.replace('+', '추가로 부과').replace('-', '감액')))
-elif pfComment['laggChange'][0] == 0 and pfComment['leadChange'][0] == 1:
-    hwp.PutFieldText("pfComment1","지상역률은 기준역률(지상역률 90%) 이상이나, 진상역률은 기준역률(진상역률 95%) 미만으로")
-    hwp.PutFieldText("pfComment2","분석기간 동안 {:,.0f}원의 요금이 {}되었습니다. 역률요금 할인을 위하여 진상역률 관리를 권장합니다.".format(abs(pfComment['saveCost'][0]),saveSign.replace('+', '추가로 부과').replace('-', '감액')))
-elif pfComment['laggChange'][0] == 1 and pfComment['leadChange'][0] == 0:
-    hwp.PutFieldText("pfComment1","진상역률은 기준역률(진상역률 95%) 이상이나, 지상역률은 기준역률(지상역률 90%) 미만으로")        
-    hwp.PutFieldText("pfComment2","분석기간 동안 {:,.0f}원의 요금이 {}되었습니다. 역률요금 할인을 위하여 지상역률 관리를 권장합니다.".format(abs(pfComment['saveCost'][0]),saveSign.replace('+', '추가로 부과').replace('-', '감액')))
+if pfComment['jiChange'][0] == 1 and pfComment['jnChange'][0] == 1:
+    hwp.PutFieldText("pfComment1","고객건물의 지상역률, 진상역률이 모두 기준역률(지상역률 90%, 진상역률 95%) 미만으로")
+    hwp.PutFieldText("pfComment2","분석기간 내 총 {:,.0f}원의 기본요금을 추가로 부과하셨습니다. 역률 관리 및 기본요금 할인을 위해 전문가와 상담할 것을 권장드립니다.".format(abs(pfComment['savingCost'][0])))
+elif pfComment['jiChange'][0] == 0 and pfComment['jnChange'][0] == 1:
+    hwp.PutFieldText("pfComment1","고객건물의 지상역률은 기준역률(지상역률 90%) 이상이나, 진상역률은 기준역률(진상역률 95%) 이하입니다.")
+    hwp.PutFieldText("pfComment2","분석기간 내 총 {:,.0f}원의 기본요금을 추가로 부과하셨습니다. 진상역률 관리 및 기본요금 할인을 위해 전문가와 상담할 것을 권장드립니다.".format(abs(pfComment['savingCost'][0])))
+elif pfComment['jiChange'][0] == 1 and pfComment['jnChange'][0] == 0:
+    hwp.PutFieldText("pfComment1","고객건물의 진상역률은 기준역률(진상역률 95%) 이상이나, 지상역률은 기준역률(지상역률 90%) 이하입니다.")        
+    hwp.PutFieldText("pfComment2","분석기간 내 총 {:,.0f}원의 기본요금을 추가로 부과하셨습니다. 지상역률 관리 및 기본요금 할인을 위해 전문가와 상담할 것을 권장드립니다.".format(abs(pfComment['savingCost'][0])))
 else :
-    hwp.PutFieldText("pfComment1","지상역률, 진상역률이 모두 기준역률(지상역률 90%, 진상역률 95%) 이상으로")
-    hwp.PutFieldText("pfComment2","분석기간 동안 {:,.0f}원의 요금이 감액되었습니다. 현재 수준의 역률을 유지하기 위한 지속적인 관리를 권장합니다.".format(abs(pfComment['saveCost'][0])))
+    hwp.PutFieldText("pfComment1","고객건물의 지상역률, 진상역률이 모두 기준역률(지상역률 90%, 진상역률 95%) 이상이며")
+    hwp.PutFieldText("pfComment2","분석기간 내 총 {:,.0f}원의 기본요금 할인을 받으셨습니다. 현재 수준의 역률을 유지하기 위한 지속적인 관리를 권장합니다.".format(abs(pfComment['savedCost'][0])))
 
 '''''''''''''''
 설비효율화
@@ -461,10 +461,10 @@ if anlyPeakTable.empty == True:
 else:
     hwp.PutFieldText("peakExpBill",'{:,.0f}'.format(anlyPeakTable['expBill'][0]))
     peakExpBill=anlyPeakTable['expBill'][0]
-hwp.PutFieldText("pfBill",'{:,.0f}'.format(pfBill))
+hwp.PutFieldText("pfBill",'{:,.0f}'.format(abs(pfComment['savingCost'][0])))
 hwp.PutFieldText("efTotalBill",'{:,.0f}'.format(efTotalBill))
 hwp.PutFieldText("meanCost",'{:,.0f}'.format(pvComment['meanCost'][0]))
-hwp.PutFieldText("totalBill",'{:,.0f}'.format(selSaveCost+ctrSaveCost+peakExpBill+pfComment['saveCost'][0]+efTotalBill+pvComment['meanCost'][0]))
+hwp.PutFieldText("totalBill",'{:,.0f}'.format(selSaveCost+ctrSaveCost+peakExpBill+abs(pfComment['savingCost'][0])+efTotalBill+pvComment['meanCost'][0]))
 
 image_path = file_root + "/images/"
 for file in os.listdir(image_path):

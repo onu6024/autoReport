@@ -220,7 +220,7 @@ def custInfo(custNo, custNm, start, end):
     #Euclidean k-means 모델 만들기 
     plt.clf()
     km=TimeSeriesKMeans(random_state=0)
-    visualizer = kelbow_visualizer(km,ts_value, k=(2,9))
+    visualizer = kelbow_visualizer(km,ts_value, k=(2,9), show=False)
     number=visualizer.elbow_value_
     km=TimeSeriesKMeans(n_clusters=number, metric="euclidean", verbose=False, random_state=0)
     y_predicted = km.fit_predict(data_scaled)
@@ -257,7 +257,6 @@ def custInfo(custNo, custNm, start, end):
     plt.legend(pieClust['clust'])
     plt.tight_layout()
     plt.savefig('images\\custinfo_4.png', bbox_inches='tight',pad_inches=0.4)
-    
     
     #증감 트렌드 도출하기
     centerDiff=centerClust.diff()
@@ -704,11 +703,46 @@ def anlyCtrPeak(custNo, custNm, start, end, GoalPeak, GoalTime):
         
         ####피크최적화####
         df=hourly
-        df["hour"]=df.index.time
+        df['month'] = df['month'].astype("int")
+        # 월별계절정보
+        info_month=pd.DataFrame({'month':[1,2,3,4,5,6,7,8,9,10,11,12],
+                                 'season':['winter', 'winter', 'sf', 'sf', 'sf', 'summer', 'summer', 'summer', 'sf', 'sf', 'winter', 'winter']})
         
-        for i in range(0, len(df)):
-            df["hour"][i]=str(df["hour"][i])[0:2]
-             
+        # 계절별 부하시간대 정보(23년 11월 9일 시행 전기요금표 기준)
+        info_load=pd.DataFrame({'summer':[1,1,1,1,1,1,1,1,2,2,2,3,2,3,3,3,3,3,2,2,2,2,1,1],
+                                'sf':[1,1,1,1,1,1,1,1,2,2,2,3,2,3,3,3,3,3,2,2,2,2,1,1],
+                                'winter':[1,1,1,1,1,1,1,1,2,3,3,3,2,2,2,2,3,3,3,2,2,2,1,1]})    # 1: 경부하, 2: 중간부하, 3: 최대부하
+        
+        info_load = info_load.applymap(str)
+        
+        # 토요일 부하시간대 정보 수정
+        info_load_saturday = info_load.replace('3', '2')
+
+        # 월별 계절 정보 병합
+        df = df.merge(info_month, on='month', how='left')
+        df.index = hourly.index
+        
+        # 부하시간대 이름 매핑 함수
+        def map_load_name(row, is_saturday=False):
+            if is_saturday:
+                return info_load_saturday.loc[row['hour'], row['season']]
+            else:
+                return info_load.loc[row['hour'], row['season']]
+        
+        # 부하시간대 이름 추가
+        df['day'] = df.index.weekday
+        df['hour'] = df.index.hour
+        df['load_nm'] = df.apply(lambda row: map_load_name(row, row['day'] == 5), axis=1)
+        
+        # 평일 중간부하-최대부하 시간대만 필터링 
+        df_weekday=df.drop(df[(df['day']==5)|(df['day']==6)].index)
+        df_saturday=df[df['day']==5]
+        df_sunday=df[df['day']==6]
+        df_sunday['load_nm']='1'
+        
+        # 평일 중간부하-최대부하 시간대 수요전력만 고려: 요금적용전력에 영향
+        df=df_weekday.drop(df_weekday[df_weekday['load_nm']=='1'].index)
+
         h=plt.hist(df["demandkW"], bins=70)
         hdf=pd.DataFrame(columns=["max_elect","counts","diff"])
         hdf["max_elect"]=h[1]
@@ -725,11 +759,11 @@ def anlyCtrPeak(custNo, custNm, start, end, GoalPeak, GoalTime):
         
         #Final_Goal 이상의 전력량 표시해주기 
         df["dkW_opt"]=''
-        for b in range(0,len(df)):
+        for b in df.index:
             if df.demandkW[b]>Final_Goal:
-                df.dkW_opt[b]=float(Final_Goal)
+                df.at[b, 'dkW_opt']=float(Final_Goal)
             else:
-                df.dkW_opt[b]=df.demandkW[b]
+                df.at[b, 'dkW_opt']=df.at[b, 'demandkW']
         
         df.dkW_opt=df.dkW_opt.astype(float)
         
@@ -1051,35 +1085,43 @@ def anlyPF(custNo, pw, start, end):
 
     real_time_info["save_cost"]=real_time_info["jiPwrfact_cost"]+real_time_info["jnPwrfact_cost"] #역률관리가 됬더라면 절약했을 요금
     
-    laggStan=90 #지상역률 기준
-    leadStan=95 #진상역률 기준
-    real_time_info["laggPFVar"]=real_time_info["jiPwrfact"]-laggStan
-    real_time_info["leadPFVar"]=real_time_info["jnPwrfact"]-leadStan
+    jiStan=90 #지상역률 기준
+    jnStan=95 #진상역률 기준
+    real_time_info["laggPFVar"]=real_time_info["jiPwrfact"]-jiStan
+    real_time_info["leadPFVar"]=real_time_info["jnPwrfact"]-jnStan
     
-    anlyPF=real_time_info[["date", "jiPwrfact", "laggPFVar", "jnPwrfact", "leadPFVar", "save_cost"]]
-    anlyPF=anlyPF.rename(columns={'jiPwrfact' : 'laggPF', 'jnPwrfact' : 'leadPF', 'save_cost' : 'pfBill'})
-    anlyPF["laggStan"]=laggStan
-    anlyPF["leadStan"]=leadStan
+    anlyPF=real_time_info[["date", "jiPwrfact", "laggPFVar", "jnPwrfact", "leadPFVar", 'jiPwrfact_cost', 'jnPwrfact_cost', "save_cost"]]
+    anlyPF=anlyPF.rename(columns={'jiPwrfact' : 'jiPF', 'jnPwrfact' : 'jnPF', 'save_cost' : 'pfBill'})
+    anlyPF["jiStan"]=jiStan
+    anlyPF["jnStan"]=jnStan
     
     anlyPF=anlyPF.sort_values("date").reset_index(drop=True)
     
     #comment
-    comment=pd.DataFrame(columns={"laggChange", "leadChange", "saveCost"})  
+    comment=pd.DataFrame(columns={'jiChange', 'jnChange', 'savedCost', 'savingCost'})
     #분석기간 중 지상역률이 90미만인 달이 한번이라도 있는 경우, 지상역률 개선 필요
     if len(real_time_info[real_time_info["jiPwrfact_re_cal"]>0])>0:   
-        comment.at[0, "laggChange"]=1
+        comment.at[0, "jiChange"]=1
     else:
-        comment.at[0, "laggChange"]=0
+        comment.at[0, "jiChange"]=0
     
     #분석기간 중 진상역률이 95미만인 달이 한번이라도 있는 경우, 진상역률 개선 필요
     if len(real_time_info[real_time_info["jnPwrfact_re_cal"]>0])>0:
-        comment.at[0, "leadChange"]=1
+        comment.at[0, "jnChange"]=1
     else:
-        comment.at[0, "leadChange"]=0
+        comment.at[0, "jnChange"]=0
     
-    #역률 개선으로 인한 예상 절감액
-    comment.at[0, "saveCost"]=real_time_info["save_cost"].sum()
-
+    #앞으로 관리해서 받을 수 있는 할인 금액(savingCost)
+    if len(real_time_info[real_time_info["save_cost"]>0])>0:
+        comment.at[0, 'savingCost']=real_time_info[real_time_info["save_cost"]>0]["save_cost"].sum()
+    else:
+        comment.at[0, 'savingCost']=0
+        
+    #여태 할인받은 금액(savedCost)
+    if len(real_time_info[real_time_info["save_cost"]<0])>0:
+        comment.at[0, 'savedCost']=real_time_info[real_time_info['save_cost']<0]['save_cost'].sum()
+    else:
+        comment.at[0, 'savingCost']=0
         
     return anlyPF, comment
 
@@ -1109,9 +1151,9 @@ def anlyEfficient(custNo, start, end, location):
     dailyEnergy['usekWh']=data_minute.resample('1D').sum()['pwrQty']
 
     #기상 데이터 불러오기 
-    sql="""SELECT * FROM ereport.sei_weather WHERE "kmaNm" = '{}' AND tm BETWEEN '{}' AND '{}'""".format(location, start, pd.to_datetime(end)+dt.timedelta(0,-900,0))
-    weather=db.execute_query(sql, dtype={'tm':'datetime64[ns]'})
-    # weather=pd.read_excel("weather.xlsx", dtype={'tm':'datetime64[ns]'})
+    # sql="""SELECT * FROM ereport.sei_weather WHERE "kmaNm" = '{}' AND tm BETWEEN '{}' AND '{}'""".format(location, start, pd.to_datetime(end)+dt.timedelta(0,-900,0))
+    # weather=db.execute_query(sql, dtype={'tm':'datetime64[ns]'})
+    weather=pd.read_excel("weather.xlsx", dtype={'tm':'datetime64[ns]'})
     weather=weather.rename(columns={'tm':'datetime', 'ta':'Temperature'})
     
     #기상데이터 전처리
